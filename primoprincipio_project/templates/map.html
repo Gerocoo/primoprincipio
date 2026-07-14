@@ -1,0 +1,126 @@
+{% include "head.html" %}
+<h1>Mappa rischio elateridi</h1>
+    </div>
+    <nav class="topbar-nav">
+      <a class="nav-link" href="/model/">Vai al modello</a>
+      <a class="nav-link" href="/">Vai alla dashboard</a>
+    </nav>
+  </header>
+  <main class="container">
+    <section class="panel map-panel">
+      <div class="panel-head">
+        <div>
+          <h2>Situazione attuale</h2>
+          <p class="panel-subtitle">Vista geografica del rischio calcolato sul punto monitorato.</p>
+        </div>
+      </div>
+
+      <div class="status-grid">
+        <div class="status-card">
+          <span class="label">Rischio</span>
+          <strong class="value risk-{{ risk.color }}">{{ risk.level|upper }}</strong>
+        </div>
+        <div class="status-card">
+          <span class="label">Gradi Giorno</span>
+          <strong class="value">{{ current_dd }}</strong>
+        </div>
+        <div class="status-card">
+          <span class="label">Azione</span>
+          <strong class="value">{{ risk.action }}</strong>
+        </div>
+        <div class="status-card">
+          <span class="label">Soglia Sordidus</span>
+          <strong class="value">{{ threshold }}</strong>
+        </div>
+      </div>
+
+      <div id="map"></div>
+    </section>
+  </main>
+
+  <script>
+    const risk = {
+      level: '{{ risk.level|escapejs }}',
+      color: '{{ risk.color|escapejs }}',
+      action: '{{ risk.action|escapejs }}'
+    };
+
+    const currentDD = '{{ current_dd|escapejs }}';
+    const threshold = '{{ threshold|escapejs }}';
+
+    const position = {
+      lat: Number('{{ pin_lat|escapejs }}'),
+      lng: Number('{{ pin_lng|escapejs }}')
+    };
+
+    function pinColor(color) {
+      if (color === 'red') return 'https://maps.google.com/mapfiles/ms/icons/red-dot.png';
+      if (color === 'yellow') return 'https://maps.google.com/mapfiles/ms/icons/yellow-dot.png';
+      return 'https://maps.google.com/mapfiles/ms/icons/green-dot.png';
+    }
+
+    function buildLegend() {
+      const legend = document.createElement('div');
+      legend.className = 'map-legend';
+      legend.innerHTML = `
+        <div class="map-legend-row">
+          <span class="dot green"></span>
+          <span>Rischio assente</span>
+        </div>
+        <div class="map-legend-row">
+          <span class="dot yellow"></span>
+          <span>Rischio medio</span>
+        </div>
+        <div class="map-legend-row">
+          <span class="dot red"></span>
+          <span>Rischio alto</span>
+        </div>
+      `;
+      return legend;
+    }
+
+    function initMap() {
+      const map = new google.maps.Map(document.getElementById('map'), {
+        center: position,
+        zoom: 13,
+        mapTypeId: 'satellite',
+        fullscreenControl: true,
+        mapTypeControl: false,
+        streetViewControl: false,
+        rotateControl: false
+      });
+
+      const marker = new google.maps.Marker({
+        position,
+        map,
+        icon: pinColor(risk.color),
+        title: `Rischio ${risk.level.toUpperCase()}`
+      });
+
+      const info = new google.maps.InfoWindow({
+        content: `
+          <div class="info-window">
+            <div class="info-badge ${risk.color}">Rischio ${risk.level.toUpperCase()}</div>
+            <div class="info-row"><strong>Gradi Giorno:</strong> ${currentDD}</div>
+            <div class="info-row"><strong>Soglia:</strong> ${threshold}</div>
+            <div class="info-row"><strong>Azione:</strong> ${risk.action}</div>
+          </div>
+        `
+      });
+
+      const legend = buildLegend();
+      map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(legend);
+
+      marker.addListener('mouseover', () => info.open({ anchor: marker, map }));
+      marker.addListener('mouseout', () => info.close());
+      marker.addListener('click', () => {
+        window.location.href = '/model/';
+      });
+    }
+
+    window.initMap = initMap;
+  </script>
+
+  <script async src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap&loading=async"></script>
+</body>
+</html>

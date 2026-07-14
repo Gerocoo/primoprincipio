@@ -1,0 +1,195 @@
+{% include "head.html" %}
+     <h1>Modello Gradi Giorno</h1>
+    </div>
+    <nav class="topbar-nav">
+      <a class="nav-link" href="/map/">Vai alla mappa</a>
+      <a class="nav-link" href="/">Vai alla dashboard</a>
+    </nav>
+  </header>
+
+  <main class="container two-cols">
+    <section class="panel wide">
+      <div id="chart"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Gestione soglie</h2>
+
+      <form id="alert-form">
+        <label>Soglia <input type="number" step="0.1" name="threshold" required></label>
+        <label>Email <input type="email" name="email" required></label>
+        <button type="submit">Salva soglia</button>
+      </form>
+
+      <div class="risk-box risk-{{ risk.color }}">
+        <p><strong>Rischio:</strong> {{ risk.level|upper }}</p>
+        <p><strong>Azione:</strong> {{ risk.action }}</p>
+        <p><strong>Soglia Sordidus:</strong> {{ threshold }}</p>
+      </div>
+
+      <h3>Soglie salvate</h3>
+      <div id="alerts-list"></div>
+    </section>
+  </main>
+
+  {{ degree_days|json_script:"degree-days-data" }}
+
+  <script>
+    const degreeDays = JSON.parse(document.getElementById('degree-days-data').textContent);
+    const modelThreshold = parseFloat('{{ threshold|escapejs }}');
+
+    function renderChart(alertThresholds = []) {
+      const categories = degreeDays.map(item => 'DOY ' + item.doy);
+      const series = degreeDays.map(item => Number(item.degree_day));
+      const maxSeries = Math.max(...series, 0);
+      const yMax = Math.max(maxSeries, modelThreshold) * 1.10;
+
+      const yPlotLines = [
+        {
+          color: '#ff9800',
+          width: 2,
+          value: modelThreshold,
+          dashStyle: 'ShortDash',
+          zIndex: 5,
+          label: {
+            text: 'Soglia Sordidus = ' + modelThreshold,
+            align: 'left',
+            x: 10,
+            y: -8,
+            useHTML: false,
+            style: {
+              color: '#ff9800',
+              fontSize: '12px',
+              fontWeight: '700',
+              textOutline: 'none'
+            }
+          }
+        }
+      ];
+
+      alertThresholds.filter(a => a.active).forEach(a => {
+        yPlotLines.push({
+          color: '#c62828',
+          width: 1.5,
+          value: Number(a.threshold),
+          dashStyle: 'Dot',
+          zIndex: 4,
+          label: {
+            text: 'Allarme ' + a.threshold,
+            align: 'right',
+            x: -10,
+            y: -4,
+            style: {
+              color: '#c62828',
+              fontSize: '11px',
+              fontWeight: '600',
+              textOutline: 'none'
+            }
+          }
+        });
+      });
+
+      Highcharts.chart('chart', {
+        chart: {
+          type: 'line',
+          spacingTop: 30
+        },
+        title: {
+          text: 'Gradi Giorno cumulati'
+        },
+        xAxis: {
+          categories,
+          plotLines: [{
+            color: '#d32f2f',
+            width: 2,
+            value: series.length - 1,
+            zIndex: 5,
+            label: {
+              text: 'Today'
+            }
+          }]
+        },
+        yAxis: {
+          min: 0,
+          max: yMax,
+          title: {
+            text: 'Gradi Giorno'
+          },
+          plotLines: yPlotLines
+        },
+        series: [{
+          name: 'Gradi Giorno',
+          data: series
+        }],
+        credits: {
+          enabled: false
+        }
+      });
+    }
+
+    async function loadAlerts() {
+      const res = await fetch('/api/alerts/list/');
+      const data = await res.json();
+
+      const box = document.getElementById('alerts-list');
+      box.innerHTML = data.map(item => `
+        <div class="alert-item">
+          <div><strong>${item.threshold}</strong> - ${item.email} - ${item.active ? 'attiva' : 'disattivata'}</div>
+          <div class="actions">
+            <button onclick="toggleAlert(${item.id}, ${!item.active})">${item.active ? 'Disattiva' : 'Attiva'}</button>
+            <button onclick="deleteAlert(${item.id})">Cancella</button>
+          </div>
+        </div>
+      `).join('');
+
+      renderChart(data);
+    }
+
+    document.getElementById('alert-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const payload = {
+        threshold: fd.get('threshold'),
+        email: fd.get('email')
+      };
+
+      const res = await fetch('/api/alerts/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        alert('Errore salvataggio soglia');
+        return;
+      }
+
+      e.target.reset();
+      loadAlerts();
+    });
+
+    async function toggleAlert(id, active) {
+      await fetch('/api/alerts/', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, active })
+      });
+      loadAlerts();
+    }
+
+    async function deleteAlert(id) {
+      const res = await fetch('/api/alerts/', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      const data = await res.json();
+      if (data.error) alert(data.error);
+      loadAlerts();
+    }
+
+    loadAlerts();
+  </script>
+   <script src="https://cdn.jsdelivr.net/npm/highcharts@12.4.0/highcharts.js"></script>
+</body>
+</html>
