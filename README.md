@@ -147,34 +147,33 @@ Come richiesto esplicitamente dalla consegna, di seguito si riportano le istruzi
 Si costruisca anzitutto l'immagine del backend:
 
 ```bash
-docker build -t primoprincipio-backend .
+docker network create primoprincipio_net .
 ```
 
 Si avvii quindi il database PostgreSQL come servizio a sé stante:
 
 ```bash
-docker run --name primoprincipio_db \
-  -e POSTGRES_DB=primoprincipio \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  -v postgres_data:/var/lib/postgresql/data \
+docker run --name primoprincipio_db `
+  --network primoprincipio_net `
+  -e POSTGRES_DB=primoprincipio `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_PASSWORD=postgres `
   -d postgres:15
 ```
 
 Infine si esegua il backend collegato al database:
 
 ```bash
-docker run --name primoprincipio_web \
-  --link primoprincipio_db:db \
-  -e DB_ENGINE=postgres \
-  -e POSTGRES_DB=primoprincipio \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_HOST=db \
-  -e POSTGRES_PORT=5432 \
-  -e GOOGLE_MAPS_API_KEY=<la-propria-chiave> \
-  -p 8000:8000 \
+docker run --name primoprincipio_web `
+  --network primoprincipio_net `
+  -e DB_ENGINE=django.db.backends.postgresql `
+  -e POSTGRES_DB=primoprincipio `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_PASSWORD=postgres `
+  -e POSTGRES_HOST=primoprincipio_db `
+  -e POSTGRES_PORT=5432 `
+  -e GOOGLE_MAPS_API_KEY=<la-propria-chiave> `
+  -p 8000:8000 `
   primoprincipio-backend
 ```
 
