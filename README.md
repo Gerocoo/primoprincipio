@@ -226,8 +226,6 @@ A differenza della pagina "modello", che mostra un singolo scenario di Gradi Gio
 
 Questa pagina consente quindi, in fase di verifica del lavoro svolto, di richiamare le API del Problema 2 (anche più volte, con dati diversi) e di osservarne l'esito senza dover leggere manualmente il JSON restituito o interrogare direttamente il database.
 
-> ⚠️ Si consiglia di verificare, prima della consegna, che la struttura dei grafici sopra descritta corrisponda esattamente a quanto effettivamente implementato in `dashboard.html`, ed eventualmente correggere questa sezione di conseguenza.
-
 ## Endpoint API
 
 | Metodo | Endpoint | Descrizione |
