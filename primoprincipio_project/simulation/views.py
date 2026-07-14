@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 PIN_LAT = 45.657808639037725
 PIN_LNG = 13.846673204128058
-DEFAULT_SORDIDUS_THRESHOLD = 820.0
+DEFAULT_SORDIDUS_THRESHOLD = 106.8
 
 
 def real_degree_days_series(lat, lon):
