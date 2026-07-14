@@ -1,7 +1,11 @@
+import logging
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+from django.core.validators import validate_email
+from django.db import transaction
 from django.db.models import Count
 from django.http import Http404
 from django.shortcuts import render
@@ -18,6 +22,9 @@ from .services import (
     build_problem_days_from_openmeteo_forecast,
     build_problem2_today_window,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 PIN_LAT = 45.657808639037725
@@ -123,8 +130,8 @@ def trigger_alerts_if_needed(series):
         if current["degree_day"] >= alert.threshold and alert.last_triggered_doy != current["doy"]:
             try:
                 send_threshold_email(alert, current)
-            except Exception as e:
-                print(f"[ERROR] invio fallito per allarme {alert.id}: {e}", flush=True)
+            except Exception:
+                logger.exception("Invio email fallito per allarme id=%s", alert.id)
                 continue
 
             alert.last_triggered_doy = current["doy"]
@@ -134,6 +141,7 @@ def trigger_alerts_if_needed(series):
     return triggered
 
 
+@transaction.atomic
 def run_batch_and_persist(days, initial_events=None):
     initial_events = initial_events or []
 
@@ -190,7 +198,12 @@ def simulation_api(request):
     if missing:
         return Response({"error": f"Missing fields: {', '.join(missing)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-    result = run_problem1_blackbox(payload)
+    try:
+        result = run_problem1_blackbox(payload)
+    except Exception:
+        logger.exception("Errore in run_problem1_blackbox")
+        return Response({"error": "Errore durante l'esecuzione del modello"}, status=status.HTTP_502_BAD_GATEWAY)
+
     return Response(result, status=status.HTTP_200_OK)
 
 
@@ -211,15 +224,25 @@ def oidio_batch_api(request):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-    result = run_batch_and_persist(days, initial_events=initial_events)
+    try:
+        result = run_batch_and_persist(days, initial_events=initial_events)
+    except Exception:
+        logger.exception("Errore in run_batch_and_persist (oidio_batch_api)")
+        return Response({"error": "Errore durante l'elaborazione del batch"}, status=status.HTTP_502_BAD_GATEWAY)
+
     return Response(result, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
 def oidio_batch_openmeteo_today_api(request):
     payload = request.data
-    lat = float(payload.get("lat", PIN_LAT))
-    lon = float(payload.get("lon", PIN_LNG))
+
+    try:
+        lat = float(payload.get("lat", PIN_LAT))
+        lon = float(payload.get("lon", PIN_LNG))
+    except (TypeError, ValueError):
+        return Response({"error": "lat/lon non validi"}, status=status.HTTP_400_BAD_REQUEST)
+
     events = payload.get("events")
 
     if events is None:
@@ -237,6 +260,7 @@ def oidio_batch_openmeteo_today_api(request):
     try:
         days = build_problem2_today_window(lat=lat, lon=lon, forecast_days=7)
     except Exception as e:
+        logger.exception("Open-Meteo fetch fallito")
         return Response(
             {"error": f"Open-Meteo fetch failed: {str(e)}"},
             status=status.HTTP_502_BAD_GATEWAY,
@@ -248,7 +272,12 @@ def oidio_batch_openmeteo_today_api(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    result = run_batch_and_persist(days, initial_events=events)
+    try:
+        result = run_batch_and_persist(days, initial_events=events)
+    except Exception:
+        logger.exception("Errore in run_batch_and_persist (oidio_batch_openmeteo_today_api)")
+        return Response({"error": "Errore durante l'elaborazione del batch"}, status=status.HTTP_502_BAD_GATEWAY)
+
     result["source"] = "open-meteo-problem2-today-window"
     result["days"] = days
     result["input_contract"] = {
@@ -357,6 +386,10 @@ def dashboard_page(request):
     return render(request, "dashboard.html")
 
 
+def _get_all_alerts_serialized():
+    return [serialize_alert(a) for a in AlertThreshold.objects.all().order_by("-created_at")]
+
+
 @api_view(["GET", "POST", "PATCH", "DELETE"])
 def alert_api(request):
     if request.method == "GET":
@@ -364,15 +397,26 @@ def alert_api(request):
         if alert_id:
             try:
                 alert = AlertThreshold.objects.get(pk=alert_id)
-            except AlertThreshold.DoesNotExist:
+            except (AlertThreshold.DoesNotExist, ValueError):
                 raise Http404("Alert not found")
             return Response(serialize_alert(alert))
 
-        return Response([serialize_alert(a) for a in AlertThreshold.objects.all().order_by("-created_at")])
+        return Response(_get_all_alerts_serialized())
 
     if request.method == "POST":
-        threshold = float(request.data["threshold"])
-        email = request.data["email"]
+        try:
+            threshold = float(request.data["threshold"])
+            email = request.data["email"]
+        except (KeyError, TypeError, ValueError):
+            return Response(
+                {"error": "threshold (numero) e email sono richiesti"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response({"error": "email non valida"}, status=status.HTTP_400_BAD_REQUEST)
 
         alert = AlertThreshold.objects.create(
             threshold=threshold,
@@ -384,22 +428,44 @@ def alert_api(request):
         if degree_days:
             current = degree_days[-1]
             if current["degree_day"] >= alert.threshold:
-                send_threshold_email(alert, current)
-                alert.last_triggered_doy = current["doy"]
-                alert.save(update_fields=["last_triggered_doy"])
+                try:
+                    send_threshold_email(alert, current)
+                except Exception:
+                    logger.exception("Invio email fallito per nuovo allarme id=%s", alert.id)
+                else:
+                    alert.last_triggered_doy = current["doy"]
+                    alert.save(update_fields=["last_triggered_doy"])
 
         return Response(serialize_alert(alert), status=status.HTTP_201_CREATED)
 
     if request.method == "PATCH":
+        alert_id = request.data.get("id")
+        if not alert_id:
+            return Response({"error": "id richiesto"}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
-            alert = AlertThreshold.objects.get(pk=request.data["id"])
-        except AlertThreshold.DoesNotExist:
+            alert = AlertThreshold.objects.get(pk=alert_id)
+        except (AlertThreshold.DoesNotExist, ValueError):
             raise Http404("Alert not found")
 
         was_active = alert.active
 
         if "active" in request.data:
             alert.active = bool(request.data["active"])
+
+        if "threshold" in request.data:
+            try:
+                alert.threshold = float(request.data["threshold"])
+            except (TypeError, ValueError):
+                return Response({"error": "threshold non valido"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if "email" in request.data:
+            new_email = request.data["email"]
+            try:
+                validate_email(new_email)
+            except ValidationError:
+                return Response({"error": "email non valida"}, status=status.HTTP_400_BAD_REQUEST)
+            alert.email = new_email
 
         just_deactivated = was_active is True and alert.active is False
         if just_deactivated:
@@ -413,15 +479,24 @@ def alert_api(request):
             if degree_days:
                 current = degree_days[-1]
                 if current["degree_day"] >= alert.threshold and alert.last_triggered_doy != current["doy"]:
-                    send_threshold_email(alert, current)
-                    alert.last_triggered_doy = current["doy"]
-                    alert.save(update_fields=["last_triggered_doy"])
+                    try:
+                        send_threshold_email(alert, current)
+                    except Exception:
+                        logger.exception("Invio email fallito per riattivazione allarme id=%s", alert.id)
+                    else:
+                        alert.last_triggered_doy = current["doy"]
+                        alert.save(update_fields=["last_triggered_doy"])
 
         return Response(serialize_alert(alert))
 
+    # DELETE
+    alert_id = request.data.get("id")
+    if not alert_id:
+        return Response({"error": "id richiesto"}, status=status.HTTP_400_BAD_REQUEST)
+
     try:
-        alert = AlertThreshold.objects.get(pk=request.data["id"])
-    except AlertThreshold.DoesNotExist:
+        alert = AlertThreshold.objects.get(pk=alert_id)
+    except (AlertThreshold.DoesNotExist, ValueError):
         raise Http404("Alert not found")
 
     if alert.active:
@@ -433,7 +508,7 @@ def alert_api(request):
 
 @api_view(["GET"])
 def alert_list_api(request):
-    return Response([serialize_alert(a) for a in AlertThreshold.objects.all().order_by("-created_at")])
+    return Response(_get_all_alerts_serialized())
 
 
 def map_page(request):

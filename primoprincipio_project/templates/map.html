@@ -97,13 +97,19 @@
         title: `Rischio ${risk.level.toUpperCase()}`
       });
 
+      const isHighRisk = risk.level.toUpperCase() === "ALTO";
+
+      const assistenzaLink = isHighRisk
+        ? ' <a href="https://wiki.wiforagri.com/wiki/assistenza" target="_blank" rel="noopener noreferrer">ASSISTENZA</a>'
+        : '';
+
       const info = new google.maps.InfoWindow({
         content: `
           <div class="info-window">
             <div class="info-badge ${risk.color}">Rischio ${risk.level.toUpperCase()}</div>
             <div class="info-row"><strong>Gradi Giorno:</strong> ${currentDD}</div>
             <div class="info-row"><strong>Soglia:</strong> ${threshold}</div>
-            <div class="info-row"><strong>Azione:</strong> ${risk.action}</div>
+            <div class="info-row"><strong>Azione:</strong> ${risk.action}${assistenzaLink}</div>
           </div>
         `
       });
@@ -111,8 +117,42 @@
       const legend = buildLegend();
       map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(legend);
 
-      marker.addListener('mouseover', () => info.open({ anchor: marker, map }));
-      marker.addListener('mouseout', () => info.close());
+      // --- Gestione hover con "grace period" ---
+      // Il problema: appena il mouse esce dal marker, mouseout chiuderebbe
+      // subito l'InfoWindow, impedendo di raggiungere il link "assistenza".
+      // Soluzione: non chiudiamo subito, aspettiamo un attimo (closeDelay)
+      // e nel frattempo controlliamo se il mouse è entrato nel popup stesso.
+      let closeTimer = null;
+      const closeDelay = 300; // ms
+
+      function scheduleClose() {
+        clearTimeout(closeTimer);
+        closeTimer = setTimeout(() => info.close(), closeDelay);
+      }
+
+      function cancelClose() {
+        clearTimeout(closeTimer);
+      }
+
+      marker.addListener('mouseover', () => {
+        cancelClose();
+        info.open({ anchor: marker, map });
+      });
+
+      marker.addListener('mouseout', scheduleClose);
+
+      // Quando l'InfoWindow è pronta nel DOM, agganciamo mouseenter/mouseleave
+      // sul suo contenitore reale (la "bolla" gm-style-iw) cosi' che passarci
+      // sopra col mouse annulli la chiusura programmata.
+      google.maps.event.addListener(info, 'domready', () => {
+        const bubble = document.querySelector('.info-window')?.closest('.gm-style-iw');
+        if (!bubble) return;
+
+        bubble.addEventListener('mouseenter', cancelClose);
+        bubble.addEventListener('mouseleave', scheduleClose);
+      });
+
+      // Il click sul marker naviga al modello: comportamento invariato.
       marker.addListener('click', () => {
         window.location.href = '/model/';
       });
