@@ -23,7 +23,6 @@ Il presente repository contiene la soluzione ai task tecnici front-end e back-en
 - [Esempi di input/output](#esempi-di-inputoutput)
 - [Logica di calcolo dei Gradi Giorno](#logica-di-calcolo-dei-gradi-giorno)
 - [Test automatici](#test-automatici)
-- [Complessità algoritmica (Problema 2)](#complessità-algoritmica-problema-2)
 
 ## Struttura del progetto
 
@@ -60,12 +59,13 @@ primoprincipio_project/
 ## Scelte progettuali e librerie
 
 - **Django + Django REST Framework**: unico stack adottato sia per il front-end (template server-side) sia per il back-end (API REST), in linea con l'opzione "mista" indicata nella consegna.
-- **[Highcharts](https://www.highcharts.com/) 12.4.0** (via CDN jsdelivr): libreria richiesta esplicitamente per il grafico Line Chart della pagina "modello", riutilizzata anche nella Dashboard per la visualizzazione dei risultati delle API.
+- **[Highcharts](https://www.highcharts.com/) 12.4.0** (via CDN jsdelivr): libreria richiesta esplicitamente per il grafico Line Chart della pagina "modello".
 - **[Google Maps JavaScript API](https://developers.google.com/maps/documentation/javascript)**: utilizzata nella pagina "mappa", con stile satellite forzato tramite `mapTypeId: 'satellite'` e marker personalizzato colorato dinamicamente (verde/giallo/rosso).
 - **[Open-Meteo API](https://open-meteo.com/)** (endpoint `archive` e `forecast`, aggregazione giornaliera): fonte dei dati meteo per il calcolo dei Gradi Giorno e per l'alimentazione delle API del Problema 1 e del Problema 2.
 - **PostgreSQL come servizio Docker separato** (`postgres:15`): richiesto esplicitamente per la persistenza del Problema 2; non è incluso nell'immagine del backend.
+- **[Chart.js](https://www.chartjs.org/)** (via CDN jsdelivr): usato nella pagina Dashboard per la visualizzazione delle serie storiche del Problema 2.
 - **Nessun template Bootstrap di partenza**: il CSS è stato scritto da zero in `static/css/style.css`, incluso tramite `head.html`, condiviso da tutte le pagine.
-- **JS separato dal template**: il codice di integrazione di Google Maps e di Highcharts risiede in file `.js` dedicati sotto `static/js/`, distinti dai file di template, come richiesto esplicitamente dalla consegna.
+- **JS separato dal template**: il codice di integrazione di Google Maps, Highcharts e Chart.js risiede in file `.js` dedicati sotto `static/js/`, distinti dai file di template, come richiesto esplicitamente dalla consegna.
 
 ## Installazione delle dipendenze
 
@@ -86,17 +86,15 @@ Le dipendenze Python del progetto sono elencate in `requirements.txt`. Si può p
 
 ### Avvio completo
 
-Clonare la repository git con:
+Si cloni la repository:
 ```bash
 git clone https://github.com/Gerocoo/primoprincipio
 ```
 
-
-Si acceda alla cartella effettiva dell'applicativo con:
+Si acceda alla cartella effettiva dell'applicativo:
 ```bash
 cd <path_to>\primoprincipio\primoprincipio_project
 ```
-
 
 Si avviino i container con:
 
@@ -215,10 +213,9 @@ DEFAULT_FROM_EMAIL=assistenza@primoprincipio.it
 GOOGLE_MAPS_API_KEY=
 ```
 
-> **Nota sulle email:** per il corretto funzionamento dell’invio mail è consigliabile utilizzare il servizio online [Mailtrap](https://mailtrap.io/), creando un account dedicato. Una volta ottenute le credenziali SMTP, si compilino le variabili corrispondenti nel file `.env` (`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`), lasciando il resto invariato. 
+> **Nota sulle email:** per il corretto funzionamento dell'invio mail è consigliabile utilizzare il servizio online [Mailtrap](https://mailtrap.io/), creando un account dedicato. Una volta ottenute le credenziali SMTP, si compilino le variabili corrispondenti nel file `.env` (`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`), lasciando il resto invariato. **Se queste variabili non vengono valorizzate**, l'applicazione non si blocca né restituisce errori all'utente (l'invio è racchiuso in un blocco try/except che registra solo un log lato server): semplicemente, nessuna email di allarme verrà mai recapitata, anche quando una soglia viene superata. È quindi consigliabile configurare Mailtrap prima di testare la funzionalità di allarme, per verificarne davvero il funzionamento end-to-end.
 
-> **Nota visualizzazione mappa:** per la corretta visualizzazione della pagina "Mappa" è indispensabile utilizzare una chiave valida per le [Google Maps JavaScript API](https://developers.google.com/maps/documentation/javascript/get-api-key). Si crei un progetto Google Cloud, si abiliti l’API e si imposti la variabile `GOOGLE_MAPS_API_KEY` nel file `.env`, lasciando invariato il resto della configurazione.
-
+> **Nota visualizzazione mappa:** per la corretta visualizzazione della pagina "Mappa" è indispensabile utilizzare una chiave valida per le [Google Maps JavaScript API](https://developers.google.com/maps/documentation/javascript/get-api-key). Si crei un progetto Google Cloud, si abiliti l'API e si imposti la variabile `GOOGLE_MAPS_API_KEY` nel file `.env`, lasciando invariato il resto della configurazione. **Se la chiave manca o non è valida**, il resto della pagina (InfoWindow, legenda, dati di rischio nel markup) viene comunque renderizzato correttamente da Django, ma l'area della mappa resta vuota/grigia, con un errore visibile solo nella Console del browser (`Google Maps JavaScript API error`): non è quindi un errore del backend, va cercato lì se la mappa non appare.
 
 ## Pagina Mappa e pagina Modello
 
@@ -228,20 +225,20 @@ GOOGLE_MAPS_API_KEY=
 
 ## Pagina Dashboard
 
-**Pagina Dashboard** (`/dashboard/`, `templates/dashboard.html`), raggiungibile dal menù di navigazione condiviso (`head.html`) insieme alle pagine "Mappa" e "Modello": è la pagina pensata per monitorare, in forma grafica, l'esito delle chiamate alle API di simulazione del Problema 2, ossia:
+> ⚠️ **Nota**: questa pagina non è richiesta né dalla traccia front-end né da quella back-end. È stata aggiunta come strumento di verifica interno, per poter osservare graficamente l'esito delle chiamate al Problema 2 senza dover leggere manualmente il JSON restituito o interrogare direttamente il database.
+
+**Pagina Dashboard** (`/dashboard/`, `templates/dashboard.html`), raggiungibile dal menù di navigazione condiviso (`head.html`) insieme alle pagine "Mappa" e "Modello": monitora, in forma grafica, l'esito delle chiamate alle API di simulazione del Problema 2, ossia:
 
 ```python
 path("api/oidio-batch/", oidio_batch_api, name="oidio_batch_api"),
 path("api/oidio-batch/openmeteo/today/", oidio_batch_openmeteo_today_api, name="oidio_batch_openmeteo_today_api"),
 ```
 
-A differenza della pagina "modello", che mostra un singolo scenario di Gradi Giorno, la Dashboard offre una **vista aggregata e storica delle simulazioni Oidio**: ogni chiamata a `oidio-batch` (manuale o automatica via Open-Meteo) produce una nuova `ModelRun`, e la Dashboard ne recupera l'elenco tramite `/api/runs/` per rappresentarla graficamente. In particolare, si propone che la pagina mostri:
+A differenza della pagina "modello", che mostra un singolo scenario di Gradi Giorno, la Dashboard offre una **vista aggregata e storica delle simulazioni Oidio**: ogni chiamata a `oidio-batch` (manuale o automatica via Open-Meteo) produce una nuova `ModelRun`, e la Dashboard ne recupera l'elenco tramite `/api/runs/` per rappresentarla graficamente, tramite Chart.js:
 
-- un **grafico Highcharts a linee multiple**, una per ciascun `event_index` della run selezionata, con l'andamento del valore `X` nel tempo (asse orizzontale: DOY; asse verticale: `X` da 0 a 1) — così da rendere immediatamente visibile la crescita monotona di ogni evento fino alla maturazione (`X = 1`);
+- un **grafico a linee multiple**, una per ciascun `event_index` della run selezionata, con l'andamento del valore `X` nel tempo (asse orizzontale: DOY; asse verticale: `X` da 0 a 1) — così da rendere immediatamente visibile la crescita monotona di ogni evento fino alla maturazione (`X = 1`);
 - un **selettore delle run** (elenco `ModelRun` con relativo intervallo `first_doy`–`last_doy` e numero di eventi), per confrontare l'esito di chiamate diverse alla stessa API;
 - un **riepilogo numerico** per la run selezionata (numero di eventi attivi, numero di eventi maturati, valore medio di `X`), utile per una lettura rapida senza dover interpretare il grafico nel dettaglio.
-
-Questa pagina consente quindi, in fase di verifica del lavoro svolto, di richiamare le API del Problema 2 (anche più volte, con dati diversi) e di osservarne l'esito senza dover leggere manualmente il JSON restituito o interrogare direttamente il database.
 
 ## Endpoint API
 
@@ -280,11 +277,13 @@ Si osservi che:
 - la variante `.../openmeteo/today/` costruisce automaticamente la finestra richiesta dalla consegna: un giorno storico ("ieri") dall'endpoint `archive` più sette giorni di previsione dall'endpoint `forecast` di Open-Meteo (`build_problem2_today_window`);
 - ogni sequenza di chiamate batch viene tracciata come riga `ModelRun` (con `first_doy`/`last_doy`); ogni valore `X` di ogni evento in ogni DOY viene salvato come riga `EventSnapshot`, collegata alla run tramite foreign key, con vincolo di unicità `(run, doy, event_index)` per evitare duplicati in caso di rielaborazione dello stesso giorno.
 
-Per la spiegazione teorica rigorosa della logica di persistenza e ricostruzione, si veda [`PROBLEMA2_TEORIA.md`](./PROBLEMA2_TEORIA.md).
+Per la spiegazione teorica rigorosa della logica di persistenza, ricostruzione e per le stime di complessità algoritmica (tempo e spazio), si veda [`PROBLEMA2_TEORIA.md`](./PROBLEMA2_TEORIA.md).
 
 ## Esempi di input/output
 
 Di seguito alcuni esempi a supporto della comprensione del funzionamento, come richiesto dalla consegna.
+
+> **Nota per chi usa PowerShell su Windows**: `curl` in PowerShell è un alias di `Invoke-WebRequest` e **non** accetta i flag `-X`/`-H`/`-d` del curl "vero", né il carattere `\` come continuazione di riga (che in PowerShell è il backtick `` ` ``). Gli esempi seguenti usano `curl.exe` per forzare il vero curl con sintassi PowerShell.
 
 ### Problema 1 — prima chiamata (creazione di un nuovo evento)
 
@@ -316,14 +315,9 @@ curl.exe -X POST http://localhost:8000/api/simulation/ `
   -d '{\"doy\": 127, \"temperature\": 17.15, \"bagnatura\": 1, \"humidity\": 42.35, \"rain\": 0.0, \"events\": [{\"index\": 0, \"X\": 0.0}]}'
 ```
 
-Si ottiene in risposta (il valore di X cresce secondo una delle tre regole, scelta casualmente):
+Si ottiene in risposta (il valore di X cresce secondo una delle tre regole, scelta casualmente — questo è un output reale verificato con una chiamata effettiva):
 ```json
-{
-  "doy": 127,
-  "events": [
-    { "index": 0, "X": 0.2 }
-  ]
-}
+{"doy":127,"events":[{"index":0,"X":0.35}]}
 ```
 
 ### Problema 2 — chiamata batch multi-DOY (Oidio, con persistenza)
@@ -348,6 +342,8 @@ Si ottiene in risposta un riepilogo della run (ogni DOY genera inoltre uno snaps
 }
 ```
 
+> ⚠️ `run_id: 12` e i valori di `X` in questo esempio sono illustrativi (le regole di crescita sono casuali ad ogni chiamata, e l'ID run dipende da quante run esistono già nel proprio database). Si esegua la chiamata e si annoti il `run_id` reale restituito, da riusare nell'esempio seguente.
+
 ### Problema 2 — variante automatica con dati reali Open-Meteo
 
 Si esegua:
@@ -362,14 +358,13 @@ Si osservi che questa chiamata recupera automaticamente il dato storico di "ieri
 
 ### Ricostruzione della serie storica di un evento
 
-Si esegua:
-
+Si esegua, sostituendo `<run_id>` con un ID realmente presente (ottenuto da una delle due chiamate precedenti, oppure elencando tutte le run con `curl.exe http://localhost:8000/api/runs/`):
 
 ```bash
-curl.exe http://localhost:8000/api/runs/12/
+curl.exe http://localhost:8000/api/runs/<run_id>/
 ```
 
-Si ottiene:
+Esempio di risposta (con `run_id = 12` a titolo illustrativo):
 ```json
 {
   "run_id": 12,
@@ -381,7 +376,6 @@ Si ottiene:
   }
 }
 ```
-
 
 ## Logica di calcolo dei Gradi Giorno
 
@@ -409,5 +403,3 @@ Si noti che sono coperti dai test:
 - il rispetto del vincolo `0 ≤ X ≤ 1` e la monotonia non decrescente;
 - la corretta gestione di più chiamate multi-DOY e della relativa persistenza (`test_problem2_api.py`);
 - la corretta ricostruzione della serie storica per singolo evento a partire dagli `EventSnapshot` (`test_reconstruction.py`).
-
-
