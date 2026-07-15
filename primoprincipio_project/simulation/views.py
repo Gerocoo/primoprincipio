@@ -1,6 +1,7 @@
 import logging
 from datetime import date, timedelta
 
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
@@ -11,9 +12,11 @@ from django.http import Http404
 from django.shortcuts import render
 from django.utils import timezone
 
+
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+
 
 from .models import ModelRun, EventSnapshot, AlertThreshold
 from .services import (
@@ -54,6 +57,8 @@ def real_degree_days_series(lat, lon):
     cumulative = 0.0
     series = []
     seen_doys = set()
+    today_doy = today.timetuple().tm_yday
+    today_index = None
 
     for day in hist_days + forecast_days:
         doy = int(day["doy"])
@@ -63,14 +68,20 @@ def real_degree_days_series(lat, lon):
 
         dd = max(0.0, float(day["temperature"]) - 8.0)
         cumulative += dd
-        series.append({
-            "doy": doy,
-            "degree_day": round(cumulative, 2),
-        })
+        series.append(
+            {
+                "doy": doy,
+                "degree_day": round(cumulative, 2),
+            }
+        )
 
-    
-    today_doy = date.today().timetuple().tm_yday
-    return series, today_doy
+        if doy == today_doy and today_index is None:
+            today_index = len(series) - 1
+
+    if today_index is None and series:
+        today_index = len(series) - 1
+
+    return series, today_doy, today_index
 
 
 def degree_days_from_input_days(days, threshold=8.0):
@@ -86,7 +97,7 @@ def degree_days_from_input_days(days, threshold=8.0):
 def risk_from_degree_days(series, threshold, today_doy):
     idx = next((i for i, s in enumerate(series) if s["doy"] == today_doy), len(series) - 1)
     current = series[idx]["degree_day"]
-    next_10 = series[idx + 1 : idx + 11]  
+    next_10 = series[idx + 1 : idx + 11]
     will_exceed = any(item["degree_day"] > threshold for item in next_10)
 
     if current > threshold:
@@ -122,11 +133,15 @@ def send_threshold_email(alert, current, connection=None):
     )
 
 
-def trigger_alerts_if_needed(series):
+def trigger_alerts_if_needed(series, today_doy=None):
     if not series:
         return []
 
-    current = series[-1]
+    if today_doy is None:
+        today_doy = series[-1]["doy"]
+
+    idx = next((i for i, s in enumerate(series) if s["doy"] == today_doy), len(series) - 1)
+    current = series[idx]
     triggered = []
 
     for alert in AlertThreshold.objects.filter(active=True):
@@ -180,8 +195,8 @@ def run_batch_and_persist(days, initial_events=None):
             )
 
     degree_days = degree_days_from_input_days(days)
-    risk = risk_from_degree_days(degree_days, DEFAULT_SORDIDUS_THRESHOLD)
-    triggered = trigger_alerts_if_needed(degree_days)
+    risk = risk_from_degree_days(degree_days, DEFAULT_SORDIDUS_THRESHOLD, degree_days[-1]["doy"])
+    triggered = trigger_alerts_if_needed(degree_days, today_doy=degree_days[-1]["doy"])
 
     return {
         "run_id": run.id,
@@ -429,7 +444,10 @@ def alert_api(request):
 
         degree_days = real_degree_days_series(PIN_LAT, PIN_LNG)
         if degree_days:
-            current = degree_days[-1]
+            series, today_doy, today_index = degree_days
+            if today_index is None:
+                today_index = len(series) - 1
+            current = series[today_index]
             if current["degree_day"] >= alert.threshold:
                 try:
                     send_threshold_email(alert, current)
@@ -480,7 +498,10 @@ def alert_api(request):
         if just_reactivated:
             degree_days = real_degree_days_series(PIN_LAT, PIN_LNG)
             if degree_days:
-                current = degree_days[-1]
+                series, today_doy, today_index = degree_days
+                if today_index is None:
+                    today_index = len(series) - 1
+                current = series[today_index]
                 if current["degree_day"] >= alert.threshold and alert.last_triggered_doy != current["doy"]:
                     try:
                         send_threshold_email(alert, current)
@@ -492,7 +513,6 @@ def alert_api(request):
 
         return Response(serialize_alert(alert))
 
-    # DELETE
     alert_id = request.data.get("id")
     if not alert_id:
         return Response({"error": "id richiesto"}, status=status.HTTP_400_BAD_REQUEST)
@@ -515,29 +535,33 @@ def alert_list_api(request):
 
 
 def map_page(request):
-    degree_days = real_degree_days_series(PIN_LAT, PIN_LNG)
-    risk = risk_from_degree_days(degree_days, DEFAULT_SORDIDUS_THRESHOLD)
+    degree_days, today_doy, today_index = real_degree_days_series(PIN_LAT, PIN_LNG)
+    risk = risk_from_degree_days(degree_days, DEFAULT_SORDIDUS_THRESHOLD, today_doy)
 
     context = {
         "google_maps_api_key": settings.GOOGLE_MAPS_API_KEY,
         "pin_lat": PIN_LAT,
         "pin_lng": PIN_LNG,
         "risk": risk,
-        "current_dd": degree_days[-1]["degree_day"] if degree_days else 0.0,
+        "current_dd": degree_days[today_index]["degree_day"] if degree_days and today_index is not None else 0.0,
         "threshold": DEFAULT_SORDIDUS_THRESHOLD,
+        "today_doy": today_doy,
+        "today_index": today_index,
     }
     return render(request, "map.html", context)
 
 
 def model_page(request):
-    degree_days = real_degree_days_series(PIN_LAT, PIN_LNG)
-    risk = risk_from_degree_days(degree_days, DEFAULT_SORDIDUS_THRESHOLD)
-    trigger_alerts_if_needed(degree_days)
+    degree_days, today_doy, today_index = real_degree_days_series(PIN_LAT, PIN_LNG)
+    risk = risk_from_degree_days(degree_days, DEFAULT_SORDIDUS_THRESHOLD, today_doy)
+    trigger_alerts_if_needed(degree_days, today_doy=today_doy)
 
     context = {
         "degree_days": degree_days,
         "threshold": DEFAULT_SORDIDUS_THRESHOLD,
         "risk": risk,
         "google_maps_api_key": settings.GOOGLE_MAPS_API_KEY,
+        "today_doy": today_doy,
+        "today_index": today_index,
     }
     return render(request, "model.html", context)

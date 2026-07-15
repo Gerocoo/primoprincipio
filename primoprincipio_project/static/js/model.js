@@ -1,5 +1,8 @@
 const degreeDays = JSON.parse(document.getElementById('degree-days-data').textContent);
-const modelThreshold = parseFloat(document.getElementById('model-config').dataset.threshold);
+const modelConfig = document.getElementById('model-config');
+const modelThreshold = parseFloat(modelConfig.dataset.threshold);
+const todayIndex = parseInt(modelConfig.dataset.todayIndex, 10);
+
 
 function renderChart(alertThresholds = []) {
   const categories = degreeDays.map(item => 'DOY ' + item.doy);
@@ -62,15 +65,15 @@ function renderChart(alertThresholds = []) {
     },
     xAxis: {
       categories,
-      plotLines: [{
+      plotLines: Number.isInteger(todayIndex) && todayIndex >= 0 ? [{
         color: '#d32f2f',
         width: 2,
-        value: series.length - 1,
+        value: todayIndex,
         zIndex: 5,
         label: {
           text: 'Today'
         }
-      }]
+      }] : []
     },
     yAxis: {
       min: 0,
@@ -90,6 +93,7 @@ function renderChart(alertThresholds = []) {
   });
 }
 
+
 async function loadAlerts() {
   const res = await fetch('/api/alerts/list/');
   const data = await res.json();
@@ -107,6 +111,7 @@ async function loadAlerts() {
 
   renderChart(data);
 }
+
 
 document.getElementById('alert-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -131,6 +136,7 @@ document.getElementById('alert-form').addEventListener('submit', async (e) => {
   loadAlerts();
 });
 
+
 async function toggleAlert(id, active) {
   await fetch('/api/alerts/', {
     method: 'PATCH',
@@ -139,6 +145,7 @@ async function toggleAlert(id, active) {
   });
   loadAlerts();
 }
+
 
 async function deleteAlert(id) {
   const res = await fetch('/api/alerts/', {
@@ -150,5 +157,6 @@ async function deleteAlert(id) {
   if (data.error) alert(data.error);
   loadAlerts();
 }
+
 
 loadAlerts();
