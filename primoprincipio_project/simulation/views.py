@@ -30,9 +30,9 @@ from .services import (
 logger = logging.getLogger(__name__)
 
 
-PIN_LAT = 45.657808639037725
-PIN_LNG = 13.846673204128058
-DEFAULT_SORDIDUS_THRESHOLD = 106.8
+PIN_LAT = 45.657808639037725 #da specifica
+PIN_LNG = 13.846673204128058 #da specifica
+DEFAULT_SORDIDUS_THRESHOLD = 106.8 #da specifica
 
 
 def real_degree_days_series(lat, lon):

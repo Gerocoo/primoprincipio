@@ -6,15 +6,6 @@
       <a class="nav-link" href="/map/">Vai alla mappa</a>
     </nav>
   </header>
-
-  <!--
-    Foglio di stile specifico della Dashboard, caricato qui perché head.html
-    non espone un blocco per <link> aggiuntivi in <head>. Il browser applica
-    correttamente un <link rel="stylesheet"> anche se posizionato nel body:
-    soluzione pragmatica a basso impatto sul resto del progetto. Un
-    miglioramento futuro sarebbe aggiungere a head.html un blocco
-    {% block extra_head %}{% endblock %} da riempire per pagina.
-  -->
   <link rel="stylesheet" href="/static/css/dashboard.css" />
 
   <div class="page dashboard-page">
