@@ -68,7 +68,9 @@ def real_degree_days_series(lat, lon):
             "degree_day": round(cumulative, 2),
         })
 
-    return series
+    
+    today_doy = date.today().timetuple().tm_yday
+    return series, today_doy
 
 
 def degree_days_from_input_days(days, threshold=8.0):
@@ -81,9 +83,10 @@ def degree_days_from_input_days(days, threshold=8.0):
     return series
 
 
-def risk_from_degree_days(series, threshold):
-    current = series[-1]["degree_day"] if series else 0.0
-    next_10 = series[-10:] if len(series) >= 10 else series
+def risk_from_degree_days(series, threshold, today_doy):
+    idx = next((i for i, s in enumerate(series) if s["doy"] == today_doy), len(series) - 1)
+    current = series[idx]["degree_day"]
+    next_10 = series[idx + 1 : idx + 11]  
     will_exceed = any(item["degree_day"] > threshold for item in next_10)
 
     if current > threshold:

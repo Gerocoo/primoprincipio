@@ -43,7 +43,7 @@ primoprincipio_project/
 │       ├── test_problem2_api.py
 │       └── test_reconstruction.py
 ├── static/
-│   ├── css/style.css
+│   ├── css/          
 │   └── js/                      # Codice Google Maps e Highcharts, separato dai template
 ├── templates/
 │   ├── head.html                 # Header condiviso, menù di navigazione, link al CSS
@@ -147,7 +147,8 @@ Come richiesto esplicitamente dalla consegna, di seguito si riportano le istruzi
 Si costruisca anzitutto l'immagine del backend:
 
 ```bash
-docker network create primoprincipio_net .
+docker build -t primoprincipio-backend .
+docker network create primoprincipio_net
 ```
 
 Si avvii quindi il database PostgreSQL come servizio a sé stante:
@@ -158,6 +159,8 @@ docker run --name primoprincipio_db `
   -e POSTGRES_DB=primoprincipio `
   -e POSTGRES_USER=postgres `
   -e POSTGRES_PASSWORD=postgres `
+  -p 5432:5432 `
+  -v postgres_data:/var/lib/postgresql/data `
   -d postgres:15
 ```
 

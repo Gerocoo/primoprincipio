@@ -1,0 +1,125 @@
+/* static/css/dashboard.css
+   Stile specifico della pagina "Dashboard", estratto dal template
+   dashboard.html per rispettare la separazione tra markup e stile
+   richiesta dalla consegna. */
+
+:root {
+  --db-bg: #f7f6f2;
+  --db-surface: #ffffff;
+  --db-border: #d8d6cf;
+  --db-text: #222;
+  --db-muted: #666;
+  --db-primary: #0f766e;
+}
+
+.dashboard-page * {
+  box-sizing: border-box;
+}
+
+.dashboard-page {
+  font-family: Arial, sans-serif;
+  color: var(--db-text);
+}
+
+.dashboard-page h1,
+.dashboard-page h2,
+.dashboard-page h3 {
+  margin-top: 0;
+}
+
+.dashboard-page .page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-page .grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
+}
+
+.dashboard-page .card {
+  background: var(--db-surface);
+  border: 1px solid var(--db-border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.dashboard-page .run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.dashboard-page .run-item {
+  border: 1px solid var(--db-border);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.dashboard-page .run-item:hover,
+.dashboard-page .run-item.active {
+  border-color: var(--db-primary);
+  background: #eef8f6;
+}
+
+.dashboard-page .muted {
+  color: var(--db-muted);
+  font-size: 14px;
+}
+
+.dashboard-page .stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.dashboard-page .stat {
+  background: #fff;
+  border: 1px solid var(--db-border);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.dashboard-page .stat .label {
+  font-size: 13px;
+  color: var(--db-muted);
+}
+
+.dashboard-page .stat .value {
+  font-size: 22px;
+  font-weight: bold;
+  margin-top: 6px;
+}
+
+.dashboard-page .chart-wrap {
+  margin-bottom: 20px;
+}
+
+.dashboard-page table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.dashboard-page th,
+.dashboard-page td {
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid var(--db-border);
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-page .grid {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-page .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

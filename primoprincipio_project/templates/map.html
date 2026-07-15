@@ -34,133 +34,25 @@
         </div>
       </div>
 
-      <div id="map"></div>
+      <!--
+        I dati calcolati server-side vengono passati al JS esterno (map.js)
+        tramite attributi data-*, non tramite tag Django dentro il .js:
+        i file statici non passano dal motore template.
+      -->
+      <div
+        id="map"
+        data-risk-level="{{ risk.level|escapejs }}"
+        data-risk-color="{{ risk.color|escapejs }}"
+        data-risk-action="{{ risk.action|escapejs }}"
+        data-current-dd="{{ current_dd|escapejs }}"
+        data-threshold="{{ threshold|escapejs }}"
+        data-pin-lat="{{ pin_lat|escapejs }}"
+        data-pin-lng="{{ pin_lng|escapejs }}"
+      ></div>
     </section>
   </main>
 
-  <script>
-    const risk = {
-      level: '{{ risk.level|escapejs }}',
-      color: '{{ risk.color|escapejs }}',
-      action: '{{ risk.action|escapejs }}'
-    };
-
-    const currentDD = '{{ current_dd|escapejs }}';
-    const threshold = '{{ threshold|escapejs }}';
-
-    const position = {
-      lat: Number('{{ pin_lat|escapejs }}'),
-      lng: Number('{{ pin_lng|escapejs }}')
-    };
-
-    function pinColor(color) {
-      if (color === 'red') return 'https://maps.google.com/mapfiles/ms/icons/red-dot.png';
-      if (color === 'yellow') return 'https://maps.google.com/mapfiles/ms/icons/yellow-dot.png';
-      return 'https://maps.google.com/mapfiles/ms/icons/green-dot.png';
-    }
-
-    function buildLegend() {
-      const legend = document.createElement('div');
-      legend.className = 'map-legend';
-      legend.innerHTML = `
-        <div class="map-legend-row">
-          <span class="dot green"></span>
-          <span>Rischio assente</span>
-        </div>
-        <div class="map-legend-row">
-          <span class="dot yellow"></span>
-          <span>Rischio medio</span>
-        </div>
-        <div class="map-legend-row">
-          <span class="dot red"></span>
-          <span>Rischio alto</span>
-        </div>
-      `;
-      return legend;
-    }
-
-    function initMap() {
-      const map = new google.maps.Map(document.getElementById('map'), {
-        center: position,
-        zoom: 13,
-        mapTypeId: 'satellite',
-        fullscreenControl: true,
-        mapTypeControl: false,
-        streetViewControl: false,
-        rotateControl: false
-      });
-
-      const marker = new google.maps.Marker({
-        position,
-        map,
-        icon: pinColor(risk.color),
-        title: `Rischio ${risk.level.toUpperCase()}`
-      });
-
-      const isHighRisk = risk.level.toUpperCase() === "ALTO";
-
-      const assistenzaLink = isHighRisk
-        ? ' <a href="https://wiki.wiforagri.com/wiki/assistenza" target="_blank" rel="noopener noreferrer">ASSISTENZA</a>'
-        : '';
-
-      const info = new google.maps.InfoWindow({
-        content: `
-          <div class="info-window">
-            <div class="info-badge ${risk.color}">Rischio ${risk.level.toUpperCase()}</div>
-            <div class="info-row"><strong>Gradi Giorno:</strong> ${currentDD}</div>
-            <div class="info-row"><strong>Soglia:</strong> ${threshold}</div>
-            <div class="info-row"><strong>Azione:</strong> ${risk.action}${assistenzaLink}</div>
-          </div>
-        `
-      });
-
-      const legend = buildLegend();
-      map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(legend);
-
-      // --- Gestione hover con "grace period" ---
-      // Il problema: appena il mouse esce dal marker, mouseout chiuderebbe
-      // subito l'InfoWindow, impedendo di raggiungere il link "assistenza".
-      // Soluzione: non chiudiamo subito, aspettiamo un attimo (closeDelay)
-      // e nel frattempo controlliamo se il mouse è entrato nel popup stesso.
-      let closeTimer = null;
-      const closeDelay = 300; // ms
-
-      function scheduleClose() {
-        clearTimeout(closeTimer);
-        closeTimer = setTimeout(() => info.close(), closeDelay);
-      }
-
-      function cancelClose() {
-        clearTimeout(closeTimer);
-      }
-
-      marker.addListener('mouseover', () => {
-        cancelClose();
-        info.open({ anchor: marker, map });
-      });
-
-      marker.addListener('mouseout', scheduleClose);
-
-      // Quando l'InfoWindow è pronta nel DOM, agganciamo mouseenter/mouseleave
-      // sul suo contenitore reale (la "bolla" gm-style-iw) cosi' che passarci
-      // sopra col mouse annulli la chiusura programmata.
-      google.maps.event.addListener(info, 'domready', () => {
-        const bubble = document.querySelector('.info-window')?.closest('.gm-style-iw');
-        if (!bubble) return;
-
-        bubble.addEventListener('mouseenter', cancelClose);
-        bubble.addEventListener('mouseleave', scheduleClose);
-      });
-
-      // Il click sul marker naviga al modello: comportamento invariato.
-      marker.addListener('click', () => {
-        window.location.href = '/model/';
-      });
-    }
-
-    window.initMap = initMap;
-  </script>
-
+  <script src="/static/js/map.js"></script>
   <script async src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initMap&loading=async"></script>
 </body>
 </html>
