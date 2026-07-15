@@ -291,15 +291,9 @@ Di seguito alcuni esempi a supporto della comprensione del funzionamento, come r
 Si esegua:
 
 ```bash
-curl -X POST http://localhost:8000/api/simulation/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "doy": 126,
-    "temperature": 15.94,
-    "bagnatura": 1,
-    "humidity": 97.25,
-    "rain": 0.0
-  }'
+curl.exe -X POST http://localhost:8000/api/simulation/ `
+  -H "Content-Type: application/json" `
+  -d '{\"doy\": 126, \"temperature\": 15.94, \"bagnatura\": 1, \"humidity\": 97.25, \"rain\": 0.0}'
 ```
 
 Si ottiene in risposta:
@@ -317,16 +311,9 @@ Si ottiene in risposta:
 Si esegua:
 
 ```bash
-curl -X POST http://localhost:8000/api/simulation/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "doy": 127,
-    "temperature": 17.15,
-    "bagnatura": 1,
-    "humidity": 42.35,
-    "rain": 0.0,
-    "events": [ { "index": 0, "X": 0.0 } ]
-  }'
+curl.exe -X POST http://localhost:8000/api/simulation/ `
+  -H "Content-Type: application/json" `
+  -d '{\"doy\": 127, \"temperature\": 17.15, \"bagnatura\": 1, \"humidity\": 42.35, \"rain\": 0.0, \"events\": [{\"index\": 0, \"X\": 0.0}]}'
 ```
 
 Si ottiene in risposta (il valore di X cresce secondo una delle tre regole, scelta casualmente):
@@ -344,18 +331,9 @@ Si ottiene in risposta (il valore di X cresce secondo una delle tre regole, scel
 Si esegua:
 
 ```bash
-curl -X POST http://localhost:8000/api/oidio-batch/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "days": [
-      { "doy": 275, "temperature": 30.0, "bagnatura": 0, "humidity": 32.0, "rain": 0.0 },
-      { "doy": 276, "temperature": 28.0, "bagnatura": 0, "humidity": 30.0, "rain": 0.0 },
-      { "doy": 277, "temperature": 27.0, "bagnatura": 1, "humidity": 59.0, "rain": 22.0 }
-    ],
-    "events": [
-      { "index": 0, "X": 0.7 }
-    ]
-  }'
+curl.exe -X POST http://localhost:8000/api/oidio-batch/ `
+  -H "Content-Type: application/json" `
+  -d '{\"days\": [{\"doy\": 275, \"temperature\": 30.0, \"bagnatura\": 0, \"humidity\": 32.0, \"rain\": 0.0}, {\"doy\": 276, \"temperature\": 28.0, \"bagnatura\": 0, \"humidity\": 30.0, \"rain\": 0.0}, {\"doy\": 277, \"temperature\": 27.0, \"bagnatura\": 1, \"humidity\": 59.0, \"rain\": 22.0}], \"events\": [{\"index\": 0, \"X\": 0.7}]}'
 ```
 
 Si ottiene in risposta un riepilogo della run (ogni DOY genera inoltre uno snapshot persistito su `EventSnapshot`):
@@ -375,9 +353,9 @@ Si ottiene in risposta un riepilogo della run (ogni DOY genera inoltre uno snaps
 Si esegua:
 
 ```bash
-curl -X POST http://localhost:8000/api/oidio-batch/openmeteo/today/ \
-  -H "Content-Type: application/json" \
-  -d '{ "lat": 45.657808639037725, "lng": 13.846673204128058, "events": [] }'
+curl.exe -X POST http://localhost:8000/api/oidio-batch/openmeteo/today/ `
+  -H "Content-Type: application/json" `
+  -d '{\"lat\": 45.657808639037725, \"lng\": 13.846673204128058, \"events\": []}'
 ```
 
 Si osservi che questa chiamata recupera automaticamente il dato storico di "ieri" e sette giorni di previsione da Open-Meteo, esegue la sequenza sul Problema 1 come black-box e persiste il risultato in una nuova `ModelRun`, visibile poi nella pagina Dashboard.
@@ -386,8 +364,9 @@ Si osservi che questa chiamata recupera automaticamente il dato storico di "ieri
 
 Si esegua:
 
+
 ```bash
-curl http://localhost:8000/api/runs/12/
+curl.exe http://localhost:8000/api/runs/12/
 ```
 
 Si ottiene:
@@ -431,13 +410,4 @@ Si noti che sono coperti dai test:
 - la corretta gestione di più chiamate multi-DOY e della relativa persistenza (`test_problem2_api.py`);
 - la corretta ricostruzione della serie storica per singolo evento a partire dagli `EventSnapshot` (`test_reconstruction.py`).
 
-## Complessità algoritmica (Problema 2)
 
-Si riportano di seguito le stime di complessità delle principali operazioni coinvolte nella gestione e ricostruzione delle serie temporali, con la relativa motivazione della struttura dati adottata.
-
-| Operazione | Complessità | Note |
-|---|---|---|
-| Aggiornamento/creazione snapshot per un evento in un DOY | O(1) | `update_or_create` su chiave composita indicizzata `(run, doy, event_index)` |
-| Elaborazione di una run di `n` giorni con `k` eventi mediamente attivi | O(n·k) | Un ciclo di aggiornamento eventi più un'eventuale creazione, per ciascun giorno della sequenza |
-| Ricostruzione della serie storica di un singolo evento (`run_detail_api`) | O(m) | `m` = numero di snapshot della run; filtro e raggruppamento in memoria per `event_index` |
-| Elenco delle run con conteggio snapshot (`runs_api`), usato dalla Dashboard | O(r + s) | `r` = numero di run, `s` = numero totale di snapshot, tramite `annotate(Count(...))` a livello DB |
