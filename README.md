@@ -86,6 +86,18 @@ Le dipendenze Python del progetto sono elencate in `requirements.txt`. Si può p
 
 ### Avvio completo
 
+Clonare la repository git con:
+```bash
+git clone https://github.com/Gerocoo/primoprincipio
+```
+
+
+Si acceda alla cartella effettiva dell'applicativo con:
+```bash
+cd <path_to>\primoprincipio\primoprincipio_project
+```
+
+
 Si avviino i container con:
 
 ```bash
@@ -203,7 +215,10 @@ DEFAULT_FROM_EMAIL=assistenza@primoprincipio.it
 GOOGLE_MAPS_API_KEY=
 ```
 
-> Le email di allarme sono inviate tramite [Mailtrap](https://mailtrap.io/) (sandbox SMTP): si può quindi verificarne il funzionamento senza esporre credenziali reali.
+> **Nota sulle email:** per il corretto funzionamento dell’invio mail è consigliabile utilizzare il servizio online [Mailtrap](https://mailtrap.io/), creando un account dedicato. Una volta ottenute le credenziali SMTP, si compilino le variabili corrispondenti nel file `.env` (`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`), lasciando il resto invariato. 
+
+> **Nota visualizzazione mappa:** per la corretta visualizzazione della pagina "Mappa" è indispensabile utilizzare una chiave valida per le [Google Maps JavaScript API](https://developers.google.com/maps/documentation/javascript/get-api-key). Si crei un progetto Google Cloud, si abiliti l’API e si imposti la variabile `GOOGLE_MAPS_API_KEY` nel file `.env`, lasciando invariato il resto della configurazione.
+
 
 ## Pagina Mappa e pagina Modello
 
@@ -388,7 +403,6 @@ Si ottiene:
 }
 ```
 
-> ⚠️ I valori numerici riportati sopra sono esemplificativi (le regole di crescita sono scelte casualmente ad ogni chiamata): si verifichi con una chiamata reale che la struttura JSON corrisponda esattamente a quella restituita dal codice, prima della consegna.
 
 ## Logica di calcolo dei Gradi Giorno
 
