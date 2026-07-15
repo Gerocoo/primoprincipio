@@ -22,6 +22,6 @@ urlpatterns = [
     path("api/runs/<int:run_id>/", run_detail_api, name="run_detail_api"),
     path("map/", map_page, name="map_page"),
     path("model/", model_page, name="model_page"),
-    path("", dashboard_page, name="dashboard_page"),
+    path("", map_page, name="map_page"),
     path("dashboard/", dashboard_page, name="dashboard_page_alias"),
 ]
